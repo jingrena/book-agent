@@ -19,7 +19,6 @@ demo-agent/
 ├── callbacks.py            # 自定义回调（追踪系统、Token 流式）
 ├── books.json              # 书籍数据（JSON 文件存储）
 ├── agent_memory.json       # 长期记忆持久化文件
-├── chat_history.json       # 对话历史持久化文件
 ├── docker-compose.yml      # Milvus 向量数据库（可选）
 ├── requirements.txt        # Python 依赖
 ├── static/                 # 前端静态资源
@@ -100,10 +99,16 @@ demo-agent/
 - **中文友好**：自研分词器支持中英混合文本，unigram + bigram 特征
 - 工具 `search_books_semantic` 支持自然语言描述搜索，如"关于宇宙文明兴衰的科幻"
 
-### 5. 长期记忆
+### 5. 记忆系统（短期 + 长期）
 
+**短期记忆（Redis）**：
+- LangGraph checkpointer：会话状态暂存，支持中断恢复
+- 前端对话历史：7 天 TTL 自动过期
+- Sorted Set 索引支持会话列表快速排序
+
+**长期记忆（JSON + RAG 向量）**：
 - 每次对话后异步提取用户偏好和事实信息
-- JSON 文件持久化 + RAG 向量索引
+- JSON 文件持久化 + TF-IDF 向量索引（可选 Milvus）
 - 在后续对话中自动注入相关记忆，实现个性化交互
 
 ### 6. 安全护栏
@@ -192,7 +197,7 @@ CLI 支持命令：`quit` 退出、`memory` 查看记忆、`clear` 清除记忆�
 
 - **框架**：LangGraph（图编排）、LangChain（工具/消息）、LangServe（API 标准化）
 - **Web**：FastAPI + SSE（流式输出） + Jinja2 模板
-- **LLM**：ChatOpenAI 兼容接口（默认 deepseek-chat）
+- **LLM**：ChatOpenAI 兼容接口（基础模型 deepseek-v4-pro，默认路由 deepseek-chat 以规避 thinking 模型多轮工具调用问题）
 - **向量存储**：Milvus（可选）/ 自研 TF-IDF
-- **持久化**：JSON 文件（书籍、记忆、对话历史）
+- **短/长期记忆**：Redis（短期，7 天 TTL）+ JSON/RAG 向量（长期）
 - **容器化**：Docker Compose（Milvus 集群）

@@ -117,7 +117,7 @@ def build_graph():
         elif target == "智能推荐":
             ctx["workflow_context"]["query"] = state.get("user_input", "")
 
-        result = wf["graph"].invoke(ctx)
+        result = wf["graph"].invoke(ctx, config=config)
         return {"final_reply": result.get("final_reply", ""), "workflow_context": result.get("workflow_context", {})}
 
     def specialist_chain_node(state: dict, config: RunnableConfig) -> dict:

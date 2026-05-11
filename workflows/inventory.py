@@ -47,7 +47,7 @@ def report_node(state: dict, config: RunnableConfig, *, llm=None) -> dict:
 
     if llm:
         try:
-            resp = llm.invoke([HumanMessage(content=prompt)])
+            resp = llm.invoke([HumanMessage(content=prompt)], config=config)
             reply = resp.content or "报告生成失败"
         except Exception as e:
             reply = f"报告生成超时({e})，以下是原始统计数据：\n{stats}"

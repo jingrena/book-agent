@@ -9,4 +9,5 @@ uvicorn>=0.34
 sse-starlette>=2.0
 python-dotenv>=1.0
 numpy>=1.26
+redis>=6.0
 pymilvus>=2.3

@@ -254,7 +254,7 @@ def init_rag_store(memory_list: list = None) -> RAGStore:
         store.index_memories(memory_list)
 
     _rag_store = store
-    print(f"  🔍 RAG 系统已启动（{backend}）")
+    print(f"  🔍 RAG 系统已启动（{store.backend}）")
     return store
 
 

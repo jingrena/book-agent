@@ -194,6 +194,7 @@ def specialist_chain(state: dict, config: RunnableConfig, *,
 
         result = agent.invoke(
             {"messages": [HumanMessage(content=task)]},
+            config=config,
         )
         # 提取最后一条 AI 消息
         last_msg = result["messages"][-1]

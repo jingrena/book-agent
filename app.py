@@ -12,7 +12,9 @@ import queue
 import threading
 import time
 import uuid
+from typing import Optional
 
+import redis
 from fastapi import FastAPI, Request
 from fastapi.responses import StreamingResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
@@ -44,43 +46,63 @@ compiled_graph, app_context = get_graph()
 # LangServe 标准路由
 add_routes(app, compiled_graph, path="/graph")
 
-# 对话历史持久化
-CHAT_HISTORY_FILE = os.path.join(BASE_DIR, "chat_history.json")
-chat_histories: dict = {}
-
-
-def _load_chat_histories() -> dict:
-    if not os.path.exists(CHAT_HISTORY_FILE):
-        return {}
-    try:
-        with open(CHAT_HISTORY_FILE, "r", encoding="utf-8") as f:
-            raw = json.load(f)
-        migrated = {}
-        for sid, val in raw.items():
-            if isinstance(val, list):
-                title = ""
-                for msg in val:
-                    if msg.get("role") == "user":
-                        title = msg["content"][:20]
-                        break
-                migrated[sid] = {"title": title, "updated_at": 0, "messages": val}
-            else:
-                migrated[sid] = val
-        return migrated
-    except Exception:
-        return {}
-
-
-def _save_chat_histories():
-    try:
-        with open(CHAT_HISTORY_FILE, "w", encoding="utf-8") as f:
-            json.dump(chat_histories, f, ensure_ascii=False, indent=2)
-    except Exception:
-        pass
-
-
-chat_histories = _load_chat_histories()
+# 对话历史持久化 — Redis
+redis_client = redis.Redis(host="localhost", port=6379, db=0, decode_responses=True)
+CHAT_HISTORY_PREFIX = "chat_history"
+SESSION_INDEX_KEY = "chat_history:sessions"
+HISTORY_TTL_DAYS = 7
 MAX_HISTORY_TURNS = 10
+
+
+def _chat_history_key(session_id: str) -> str:
+    return f"{CHAT_HISTORY_PREFIX}:{session_id}"
+
+
+def _get_chat_history(session_id: str) -> Optional[dict]:
+    raw = redis_client.get(_chat_history_key(session_id))
+    if raw:
+        try:
+            return json.loads(raw)
+        except Exception:
+            return None
+    return None
+
+
+def _save_chat_history(session_id: str, data: dict):
+    key = _chat_history_key(session_id)
+    pipe = redis_client.pipeline()
+    pipe.setex(key, HISTORY_TTL_DAYS * 86400, json.dumps(data, ensure_ascii=False))
+    pipe.zadd(SESSION_INDEX_KEY, {session_id: data.get("updated_at", time.time())})
+    pipe.execute()
+
+
+def _delete_chat_history(session_id: str):
+    pipe = redis_client.pipeline()
+    pipe.delete(_chat_history_key(session_id))
+    pipe.zrem(SESSION_INDEX_KEY, session_id)
+    pipe.execute()
+
+
+def _list_chat_histories() -> list:
+    session_ids = redis_client.zrevrange(SESSION_INDEX_KEY, 0, -1)
+    result = []
+    for sid in session_ids:
+        raw = redis_client.get(_chat_history_key(sid))
+        if not raw:
+            redis_client.zrem(SESSION_INDEX_KEY, sid)
+            continue
+        try:
+            data = json.loads(raw)
+        except Exception:
+            continue
+        result.append({
+            "id": sid,
+            "title": data.get("title", "未命名对话"),
+            "updated_at": data.get("updated_at", 0),
+            "message_count": len(data.get("messages", [])),
+        })
+    result.sort(key=lambda x: x["updated_at"], reverse=True)
+    return result
 
 
 # ============================================================
@@ -148,25 +170,23 @@ async def stream_chat(request: Request):
                         final_text += event_data.get("text", "")
                     yield f"event: {event_name}\ndata: {json.dumps(event_data, ensure_ascii=False)}\n\n"
 
-            # 保存对话历史
-            session_data = chat_histories.get(browser_session, {})
+            # 保存对话历史（Redis）
+            session_data = _get_chat_history(browser_session) or {}
             history = session_data.get("messages", [])
             history.append({"role": "user", "content": user_input})
             if final_text:
                 history.append({"role": "assistant", "content": final_text})
-            # 获取最终回复
             title = session_data.get("title", "")
             if not title:
                 for msg in history:
                     if msg.get("role") == "user":
                         title = msg["content"][:20]
                         break
-            chat_histories[browser_session] = {
+            _save_chat_history(browser_session, {
                 "title": title,
                 "updated_at": time.time(),
                 "messages": history[-MAX_HISTORY_TURNS * 2:],
-            }
-            _save_chat_histories()
+            })
 
             # 追踪摘要
             trace_summary = {}
@@ -265,30 +285,19 @@ async def get_books():
 
 @app.get("/history")
 async def list_chat_histories():
-    sessions = []
-    for sid, data in chat_histories.items():
-        if isinstance(data, dict):
-            sessions.append({
-                "id": sid,
-                "title": data.get("title", "未命名对话"),
-                "updated_at": data.get("updated_at", 0),
-                "message_count": len(data.get("messages", [])),
-            })
-    sessions.sort(key=lambda x: x["updated_at"], reverse=True)
-    return {"sessions": sessions}
+    return {"sessions": _list_chat_histories()}
 
 
 @app.get("/history/{session_id}")
 async def get_chat_history(session_id: str):
-    session_data = chat_histories.get(session_id, {})
-    messages = session_data.get("messages", []) if isinstance(session_data, dict) else session_data
+    session_data = _get_chat_history(session_id) or {}
+    messages = session_data.get("messages", []) if isinstance(session_data, dict) else []
     return {"messages": messages}
 
 
 @app.delete("/history/{session_id}")
 async def clear_chat_history(session_id: str):
-    chat_histories.pop(session_id, None)
-    _save_chat_histories()
+    _delete_chat_history(session_id)
     return {"status": "ok"}
 
 

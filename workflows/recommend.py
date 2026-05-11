@@ -56,7 +56,7 @@ def personalize_node(state: dict, config: RunnableConfig, *,
 
     if llm:
         try:
-            resp = llm.invoke([HumanMessage(content=prompt)])
+            resp = llm.invoke([HumanMessage(content=prompt)], config=config)
             reply = resp.content or "推荐生成失败"
         except Exception as e:
             reply = f"推荐生成超时({e})，以下是候选书目供参考：\n{candidates}"
