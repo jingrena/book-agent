@@ -1,0 +1,134 @@
+[
+  {
+    "title": "三体",
+    "author": "刘慈欣",
+    "publish_date": "2008-01-01",
+    "category": "科幻"
+  },
+  {
+    "title": "活着",
+    "author": "余华",
+    "publish_date": "1993-06-01",
+    "category": "文学"
+  },
+  {
+    "title": "百年孤独",
+    "author": "加西亚·马尔克斯",
+    "publish_date": "1967-05-30",
+    "category": "文学"
+  },
+  {
+    "title": "设计模式：可复用面向对象软件的基础",
+    "author": "Erich Gamma 等",
+    "publish_date": "1994-10-31",
+    "category": "计算机"
+  },
+  {
+    "title": "深度学习",
+    "author": "Ian Goodfellow",
+    "publish_date": "2016-11-18",
+    "category": "计算机"
+  },
+  {
+    "title": "人类简史",
+    "author": "尤瓦尔·赫拉利",
+    "publish_date": "2014-02-10",
+    "category": "历史"
+  },
+  {
+    "title": "银河帝国：基地",
+    "author": "艾萨克·阿西莫夫",
+    "publish_date": "1951-06-01",
+    "category": "科幻"
+  },
+  {
+    "title": "算法导论",
+    "author": "Thomas H. Cormen 等",
+    "publish_date": "2009-07-31",
+    "category": "计算机"
+  },
+  {
+    "title": "围城",
+    "author": "钱钟书",
+    "publish_date": "1947-01-01",
+    "category": "文学"
+  },
+  {
+    "title": "枪炮、病菌与钢铁",
+    "author": "贾雷德·戴蒙德",
+    "publish_date": "1997-03-01",
+    "category": "历史"
+  },
+  {
+    "title": "流浪地球",
+    "author": "刘慈欣",
+    "publish_date": "2000-07-01",
+    "category": "科幻"
+  },
+  {
+    "title": "霸道总裁爱上我",
+    "author": "lulu",
+    "publish_date": "2026-01-01",
+    "category": "言情"
+  },
+  {
+    "title": "苏菲的世界",
+    "author": "乔斯坦·贾德",
+    "publish_date": "1991-01-01",
+    "category": "文学"
+  },
+  {
+    "title": "明天的日子",
+    "author": "lulu",
+    "publish_date": "2026-05-01",
+    "category": "抽象"
+  },
+  {
+    "title": "我的梦想",
+    "author": "hh",
+    "publish_date": "2026-05-01",
+    "category": "激励"
+  },
+  {
+    "title": "我的第一本小说",
+    "author": "jr",
+    "publish_date": "",
+    "category": "文学"
+  },
+  {
+    "title": "美食大全",
+    "author": "lu'lu",
+    "publish_date": "",
+    "category": "其他"
+  },
+  {
+    "title": "假如给我三天光明",
+    "author": "我忘记了",
+    "publish_date": "2026-06-01",
+    "category": "激励"
+  },
+  {
+    "title": "软件开发的201个原则",
+    "author": "我忘记了",
+    "publish_date": "2026-06-01",
+    "category": "计算机"
+  },
+  {
+    "title": "月亮与六便士",
+    "author": "威廉·萨默塞特·毛姆",
+    "publish_date": "2025-03-01",
+    "category": "外国文学"
+  },
+  {
+    "title": "月亮与六便士",
+    "author": "我忘记了",
+    "publish_date": "2026-08-01",
+    "category": "文学"
+  },
+  {
+    "title": "乔布斯自传",
+    "author": "乔布斯",
+    "publish_date": "2026-07-01",
+    "category": "激励"
+  }
+]

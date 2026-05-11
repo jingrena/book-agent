@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智能图书助手</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="app">
+        <!-- 最左侧会话列表 -->
+        <div class="session-sidebar" id="sessionSidebar">
+            <div class="session-sidebar-header">
+                <button class="btn-new-chat" onclick="newChat()">+ 新对话</button>
+            </div>
+            <div class="session-list" id="sessionList"></div>
+        </div>
+
+        <!-- 中间聊天区 -->
+        <div class="chat-area">
+            <div class="chat-header">
+                <h1>📚 智能图书助手</h1>
+                <span class="status" id="status">就绪</span>
+            </div>
+            <div class="chat-messages" id="messages">
+                <div class="msg system">
+                    <div class="bubble">你好！我是智能图书助手，可以帮你找书、推荐书、上架新书。试试说"推荐一本科幻小说"或"上架一本书"。</div>
+                </div>
+            </div>
+            <div class="chat-input">
+                <textarea id="input" placeholder="输入消息，Enter 发送，Shift+Enter 换行..." rows="1"></textarea>
+                <button id="sendBtn" onclick="sendMessage()">发送</button>
+                <button id="stopBtn" class="btn-stop" onclick="stopGeneration()" style="display:none">停止</button>
+            </div>
+        </div>
+
+        <!-- 右侧面板 -->
+        <div class="side-panel" id="sidePanel">
+            <div class="panel-tabs">
+                <button class="tab active" data-tab="process" onclick="switchTab('process')">过程</button>
+                <button class="tab" data-tab="trace" onclick="switchTab('trace')">追踪</button>
+                <button class="tab" data-tab="memory" onclick="switchTab('memory')">记忆</button>
+                <button class="tab" data-tab="books" onclick="switchTab('books')">书库</button>
+                <button class="tab" data-tab="skills" onclick="switchTab('skills')">技能</button>
+            </div>
+
+            <div class="panel-content">
+                <div class="tab-content active" id="tab-process">
+                    <div id="processLog" class="process-log">
+                        <div class="process-empty">中间过程将在这里实时显示</div>
+                    </div>
+                </div>
+
+                <div class="tab-content" id="tab-trace">
+                    <div id="traceReport" class="trace-report">
+                        <div class="process-empty">追踪报告将在对话后显示</div>
+                    </div>
+                </div>
+
+                <div class="tab-content" id="tab-memory">
+                    <div id="memoryList" class="memory-list"></div>
+                    <button class="btn-danger" onclick="clearMemory()">清除记忆</button>
+                </div>
+
+                <div class="tab-content" id="tab-books">
+                    <div id="bookList" class="book-list"></div>
+                </div>
+
+                <div class="tab-content" id="tab-skills">
+                    <div id="skillList" class="skill-list"></div>
+                    <div id="availableSkills" class="skill-available"></div>
+                    <button class="btn-reload" onclick="reloadSkills()">重新加载</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
