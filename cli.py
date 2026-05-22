@@ -1,5 +1,7 @@
 """CLI 入口：命令行交互模式"""
 
+from langchain_core.messages import HumanMessage
+
 from graph import get_graph
 from callbacks import tracer
 from memory import load_memory, save_memory
@@ -50,7 +52,7 @@ def main():
                 result = compiled_graph.invoke(
                     {
                         "user_input": user_input,
-                        "messages": [],
+                        "messages": [HumanMessage(content=user_input)],
                         "session_id": session_id,
                         "workflow_context": {},
                         "specialist_keys": [],

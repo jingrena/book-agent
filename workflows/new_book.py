@@ -5,8 +5,8 @@ import json
 from langchain_core.messages import HumanMessage
 from langchain_core.callbacks import dispatch_custom_event
 from langchain_core.runnables import RunnableConfig
+from langchain_core.runnables.config import patch_config
 from langgraph.graph import StateGraph, END
-from langgraph.types import interrupt
 
 from state import NewBookWorkflowState
 from tools.core import _load_books, _save_books
@@ -63,7 +63,7 @@ def auto_classify_node(state: dict, config: RunnableConfig, *, llm=None) -> dict
                 ctx["category"] = cat
                 return {"workflow_context": {**ctx, "_classify_result": f"快速分类结果：{cat}"}}
 
-    # LLM 分类
+    # LLM 分类（suppress callbacks 避免分类 token 泄漏到前端）
     if llm:
         _emit("step", {"message": "正在智能分类（调用 LLM）..."}, config)
         prompt = (
@@ -72,7 +72,10 @@ def auto_classify_node(state: dict, config: RunnableConfig, *, llm=None) -> dict
             f"只返回类别名称，不要其他内容。"
         )
         try:
-            resp = llm.invoke([HumanMessage(content=prompt)], config={"temperature": 0})
+            resp = llm.invoke(
+                [HumanMessage(content=prompt)],
+                config=patch_config(config, callbacks=[]),
+            )
             category = resp.content.strip()
             valid = {"文学", "科幻", "计算机", "历史", "哲学", "经济", "其他"}
             if category not in valid:
@@ -88,48 +91,19 @@ def auto_classify_node(state: dict, config: RunnableConfig, *, llm=None) -> dict
 
 
 def confirm_and_add_node(state: dict, config: RunnableConfig) -> dict:
-    """确认上架：通过 interrupt 暂停等待用户确认"""
+    """直接上架（信息已在路由层校验完整）"""
     ctx = state.get("workflow_context", {})
     if ctx.get("duplicate"):
         return {"workflow_context": {**ctx, "_add_result": "跳过上架（重复书籍）"}}
 
-    title = ctx.get("title", "")
-    author = ctx.get("author", "")
-    publish_date = ctx.get("publish_date", "")
-    category = ctx.get("category", "其他")
-
-    fields = {
-        "书名": title,
-        "作者": author,
-        "出版日期": publish_date,
-        "分类": category,
-    }
-
-    # 暂停图执行，等待人类确认
-    confirmation = interrupt({
-        "confirm_type": "add_book",
-        "detail": f"书名：《{title}》\n作者：{author}\n出版日期：{publish_date}\n分类：{category}",
-        "fields": fields,
-    })
-
-    if not confirmation.get("confirmed"):
-        ctx["cancelled"] = True
-        return {"workflow_context": {**ctx, "_add_result": "用户取消上架"}}
-
-    # 应用修改
-    modifications = confirmation.get("modifications", {})
-    field_map = {"书名": "title", "作者": "author", "出版日期": "publish_date", "分类": "category"}
-    for label, key in field_map.items():
-        val = modifications.get(label, "").strip()
-        if val:
-            ctx[key] = val
-
-    # 上架
     from tools.core import _add_book_func
     result = _add_book_func(
-        title=ctx["title"], author=ctx["author"],
-        publish_date=ctx["publish_date"], category=ctx["category"],
+        title=ctx.get("title", ""),
+        author=ctx.get("author", ""),
+        publish_date=ctx.get("publish_date", ""),
+        category=ctx.get("category", "其他"),
     )
+    _emit("step", {"message": result}, config)
     return {"workflow_context": {**ctx, "_add_result": result}}
 
 

@@ -101,7 +101,12 @@ def build_graph():
         ctx = {"workflow_context": {}, "session_id": state.get("session_id", "")}
         if target == "新书入库":
             from nodes import extract_book_info
-            book_info = extract_book_info(state.get("user_input", ""), llm=llm)
+            from langchain_core.messages import HumanMessage as HumanMsg
+            # 聚合所有用户消息，解决多轮补全信息时找不到前几轮内容的问题
+            all_msgs = state.get("messages", [])
+            user_texts = [m.content for m in all_msgs if isinstance(m, HumanMsg)]
+            combined = "\n".join(user_texts) if user_texts else state.get("user_input", "")
+            book_info = extract_book_info(combined, llm=llm)
             ctx["workflow_context"].update(book_info)
             ctx["workflow_context"]["user_input"] = state.get("user_input", "")
             missing = []

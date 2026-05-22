@@ -3,6 +3,9 @@
 from langchain_core.tools import tool
 
 
+SIMILARITY_THRESHOLD = 0.1
+
+
 @tool
 def search_books_semantic(query: str, top_k: int = 3) -> str:
     """用自然语言语义搜索书籍，支持模糊描述查询，如'关于宇宙文明兴衰的科幻'"""
@@ -14,11 +17,15 @@ def search_books_semantic(query: str, top_k: int = 3) -> str:
             if results:
                 lines = []
                 for text, score, meta in results:
+                    if score < SIMILARITY_THRESHOLD:
+                        continue
                     title = meta.get("title", "?")
                     author = meta.get("author", "?")
                     category = meta.get("category", "?")
                     lines.append(f"《{title}》- {author} ({category}, 相似度:{score:.2f})")
-                return "\n".join(lines)
+                if lines:
+                    return "\n".join(lines)
+                return "NO_MATCH"
         except Exception:
             pass
 
@@ -39,12 +46,14 @@ def search_books_semantic(query: str, top_k: int = 3) -> str:
     store.add_texts(texts, metadatas)
     results = store.similarity_search_with_score(query, k=top_k)
     if not results:
-        return "未找到语义匹配的书籍"
+        return "NO_MATCH"
     lines = []
     for doc, score in results:
+        if score < SIMILARITY_THRESHOLD:
+            continue
         meta = doc.metadata
         lines.append(f"《{meta.get('title', '?')}》- {meta.get('author', '?')} ({meta.get('category', '?')}, 相似度:{score:.2f})")
-    return "\n".join(lines)
+    return "\n".join(lines) if lines else "NO_MATCH"
 
 
 @tool

@@ -12,6 +12,9 @@ from memory import load_memory, update_memory_async
 from tools import get_tool_map
 from callbacks import emit_event
 
+# 多轮对话保留的最大消息条数（约 5 轮）
+MAX_CTX_MSGS = 10
+
 
 # ============================================================
 # 快捷回复表
@@ -89,6 +92,17 @@ def classify_intent(state: dict, config: RunnableConfig, *,
 
     lower = user_input.lower()
 
+    # 查询/搜索意图优先匹配，防止被上架关键词误伤
+    search_keywords = ["在不在", "有没有", "在库", "查一下", "查查", "找找", "有吗", "搜索"]
+    for kw in search_keywords:
+        if kw in lower:
+            return {"route_type": "specialists", "route_target": ["retriever"]}
+
+    # 对过去操作的状态询问（"上架成功了么"），不触发工作流
+    status_suffixes = ["了么", "了吗", "成功了", "上架了", "入库了", "加进去了"]
+    if any(s in lower for s in status_suffixes):
+        return {"route_type": "specialists", "route_target": ["general"]}
+
     # 工作流关键词
     add_keywords = ["上架", "入库", "添加书", "新增书", "录入"]
     recommend_keywords = ["推荐", "推荐书", "适合我", "想看"]
@@ -158,7 +172,6 @@ def specialist_chain(state: dict, config: RunnableConfig, *,
     if isinstance(specialist_keys, str):
         specialist_keys = [specialist_keys]
 
-    # 过滤有效专家
     valid_keys = [k for k in specialist_keys if k in (specialist_agents or {})]
     if not valid_keys:
         valid_keys = ["general"]
@@ -166,37 +179,47 @@ def specialist_chain(state: dict, config: RunnableConfig, *,
     names = [specialist_agents[k]["name"] for k in valid_keys]
     _emit("route", {"message": f"调度方案：{' → '.join(names)}"}, config)
 
-    context = state.get("user_input", "")
     user_input = state.get("user_input", "")
 
-    # 注入记忆
+    # 多轮对话历史：取最近 MAX_CTX_MSGS 条（包含当前这轮的 HumanMessage）
+    history = list(state.get("messages", []))
+    if len(history) > MAX_CTX_MSGS:
+        history = history[-MAX_CTX_MSGS:]
+
+    # 将长期记忆追加到最后一条 HumanMessage
     memory_text = ""
     if long_term_memory:
         memory_text = "\n\n你记住的关于用户的信息：\n" + "\n".join(f"  - {m}" for m in long_term_memory[:10])
+    if memory_text and history:
+        last = history[-1]
+        if isinstance(last, HumanMessage):
+            history = history[:-1] + [HumanMessage(content=last.content + memory_text)]
+
+    context = user_input
 
     for i, key in enumerate(valid_keys):
-        is_last = (i == len(valid_keys) - 1)
         spec = specialist_agents[key]
         agent = spec["agent"]
 
         _emit("specialist", {"message": f"[{spec['name']}] 开始工作..."}, config)
 
-        task = context
-        if key == "recommender" and len(valid_keys) > 1:
-            task = (
-                f"用户需求：{user_input}\n\n"
-                f"以下是检索员提供的候选书目：\n{context}\n\n"
-                f"请基于以上信息，给用户做个性化推荐。"
-            )
+        if i == 0:
+            # 第一个专家：传入完整对话历史，天然支持多轮
+            input_messages = history or [HumanMessage(content=user_input + memory_text)]
+        else:
+            # 后续专家：以上一个专家的输出为输入
+            task = context
+            if key == "recommender" and len(valid_keys) > 1:
+                task = (
+                    f"用户需求：{user_input}\n\n"
+                    f"以下是检索员提供的候选书目：\n{context}\n\n"
+                    f"请基于以上信息，给用户做个性化推荐。"
+                )
+            if memory_text:
+                task += memory_text
+            input_messages = [HumanMessage(content=task)]
 
-        if memory_text:
-            task += memory_text
-
-        result = agent.invoke(
-            {"messages": [HumanMessage(content=task)]},
-            config=config,
-        )
-        # 提取最后一条 AI 消息
+        result = agent.invoke({"messages": input_messages}, config=config)
         last_msg = result["messages"][-1]
         context = last_msg.content if hasattr(last_msg, "content") else str(last_msg)
 
@@ -213,7 +236,9 @@ def output_guard(state: dict, config: RunnableConfig) -> dict:
         # 快捷回复已经在 quick_reply 节点发过 token，跳过
         if not state.get("quick_reply"):
             _emit("token", {"text": reply}, config)
-    return {"final_reply": reply}
+    # 把 AI 回复追加到对话历史，供下一轮使用
+    messages_out = [AIMessage(content=reply)] if reply else []
+    return {"final_reply": reply, "messages": messages_out}
 
 
 def memory_update(state: dict, config: RunnableConfig, *,

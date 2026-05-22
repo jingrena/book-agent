@@ -19,6 +19,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import StreamingResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from langchain_core.messages import AIMessage, HumanMessage
 from langserve import add_routes
 from langgraph.types import Command
 
@@ -52,6 +53,8 @@ CHAT_HISTORY_PREFIX = "chat_history"
 SESSION_INDEX_KEY = "chat_history:sessions"
 HISTORY_TTL_DAYS = 7
 MAX_HISTORY_TURNS = 10
+MAX_CTX_MSGS = 10       # 注入 LLM 的最大历史消息条数
+ACTIVE_THREAD_TTL = 3600  # interrupt/resume 用的 thread_id 保留时长（秒）
 
 
 def _chat_history_key(session_id: str) -> str:
@@ -105,6 +108,20 @@ def _list_chat_histories() -> list:
     return result
 
 
+def _build_lc_messages(history_msgs: list, user_input: str) -> list:
+    """将 Redis 存储的历史 + 当前输入转换为 LangChain messages。
+    最多取最近 MAX_CTX_MSGS-1 条历史，再追加当前 HumanMessage。
+    """
+    lc = []
+    for msg in history_msgs[-(MAX_CTX_MSGS - 1):]:
+        if msg.get("role") == "user":
+            lc.append(HumanMessage(content=msg["content"]))
+        elif msg.get("role") == "assistant":
+            lc.append(AIMessage(content=msg["content"]))
+    lc.append(HumanMessage(content=user_input))
+    return lc
+
+
 # ============================================================
 # 页面路由
 # ============================================================
@@ -137,11 +154,20 @@ async def stream_chat(request: Request):
             # 发送 reply_start 事件，前端据此创建流式气泡
             yield f"event: reply_start\ndata: {json.dumps({})}\n\n"
 
+            # 从 Redis 加载历史，构建 LangChain messages
+            session_data = _get_chat_history(browser_session) or {}
+            history_msgs = session_data.get("messages", [])
+            lc_messages = _build_lc_messages(history_msgs, user_input)
+
+            # 每次请求用独立 thread_id，避免 MemorySaver 重复累加历史
+            request_thread_id = str(uuid.uuid4())
+            redis_client.setex(f"active_thread:{browser_session}", ACTIVE_THREAD_TTL, request_thread_id)
+
             # 使用 astream_events 获取流式输出
             async for event in compiled_graph.astream_events(
                 {
                     "user_input": user_input,
-                    "messages": [],
+                    "messages": lc_messages,
                     "session_id": session_id,
                     "workflow_context": {},
                     "specialist_keys": [],
@@ -151,7 +177,7 @@ async def stream_chat(request: Request):
                     "block_reason": "",
                     "quick_reply": None,
                 },
-                config={"configurable": {"thread_id": session_id}},
+                config={"configurable": {"thread_id": request_thread_id}},
                 version="v2",
             ):
                 kind = event["event"]
@@ -170,8 +196,7 @@ async def stream_chat(request: Request):
                         final_text += event_data.get("text", "")
                     yield f"event: {event_name}\ndata: {json.dumps(event_data, ensure_ascii=False)}\n\n"
 
-            # 保存对话历史（Redis）
-            session_data = _get_chat_history(browser_session) or {}
+            # 保存对话历史到 Redis（使用请求开始时加载的 session_data，避免重复 GET）
             history = session_data.get("messages", [])
             history.append({"role": "user", "content": user_input})
             if final_text:
@@ -221,10 +246,12 @@ async def handle_confirm(request: Request):
     confirmed = data.get("confirmed", False)
     modifications = data.get("modifications", {})
 
-    # 恢复被 interrupt 暂停的图
+    # 查找对应请求的 thread_id（由 /stream 存入 Redis）
+    active_thread_id = redis_client.get(f"active_thread:{session_id}") or session_id
+
     result = compiled_graph.invoke(
         Command(resume={"confirmed": confirmed, "modifications": modifications}),
-        config={"configurable": {"thread_id": session_id}},
+        config={"configurable": {"thread_id": active_thread_id}},
     )
     return {"status": "ok", "result": result.get("final_reply", "")}
 
@@ -242,10 +269,16 @@ async def chat(request: Request):
 
     session_id = data.get("session_id", str(uuid.uuid4()))
 
+    # 从 Redis 加载历史，构建 LangChain messages
+    session_data = _get_chat_history(session_id) or {}
+    history_msgs = session_data.get("messages", [])
+    lc_messages = _build_lc_messages(history_msgs, user_input)
+
+    request_thread_id = str(uuid.uuid4())
     result = compiled_graph.invoke(
         {
             "user_input": user_input,
-            "messages": [],
+            "messages": lc_messages,
             "session_id": session_id,
             "workflow_context": {},
             "specialist_keys": [],
@@ -255,10 +288,22 @@ async def chat(request: Request):
             "block_reason": "",
             "quick_reply": None,
         },
-        config={"configurable": {"thread_id": session_id}},
+        config={"configurable": {"thread_id": request_thread_id}},
     )
 
     reply = result.get("final_reply", "")
+
+    # 保存到 Redis
+    history = session_data.get("messages", [])
+    history.append({"role": "user", "content": user_input})
+    if reply:
+        history.append({"role": "assistant", "content": reply})
+    _save_chat_history(session_id, {
+        "title": session_data.get("title") or user_input[:20],
+        "updated_at": time.time(),
+        "messages": history[-MAX_HISTORY_TURNS * 2:],
+    })
+
     return {"reply": reply, "session_id": session_id}
 
 

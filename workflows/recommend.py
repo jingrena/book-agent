@@ -48,6 +48,10 @@ def personalize_node(state: dict, config: RunnableConfig, *,
     if not memory_text and memory_list:
         memory_text = "用户偏好：" + "；".join(memory_list)
 
+    if not candidates or candidates == "NO_MATCH":
+        _emit("workflow_end", {"message": "工作流【智能推荐】完成"}, config)
+        return {"final_reply": "抱歉，书库中暂时没有与您需求相符的书籍，建议换个关键词试试。"}
+
     prompt = (
         f"候选书目：\n{candidates}\n\n"
         f"{memory_text}\n\n"
