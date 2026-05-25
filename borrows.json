@@ -1,0 +1,20 @@
+[
+  {
+    "id": "71021351-126d-4dcf-99e4-4e471519e639",
+    "book_title": "三体",
+    "borrower": "张三",
+    "borrow_date": "2026-05-25",
+    "due_date": "2026-06-24",
+    "returned": false,
+    "return_date": null
+  },
+  {
+    "id": "79979597-aedd-453f-8137-f6b46883f447",
+    "book_title": "三体",
+    "borrower": "张三",
+    "borrow_date": "2026-05-25",
+    "due_date": "2026-06-24",
+    "returned": false,
+    "return_date": null
+  }
+]

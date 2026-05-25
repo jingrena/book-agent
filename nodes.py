@@ -103,6 +103,12 @@ def classify_intent(state: dict, config: RunnableConfig, *,
     if any(s in lower for s in status_suffixes):
         return {"route_type": "specialists", "route_target": ["general"]}
 
+    # 开放型推荐：走 retriever → recommender 专家链
+    open_recommend_keywords = ["适合飞机", "送礼", "睡前", "不烧脑", "帮我挑", "帮我选", "随便推", "轻松读"]
+    for kw in open_recommend_keywords:
+        if kw in lower:
+            return {"route_type": "specialists", "route_target": ["retriever", "recommender"]}
+
     # 工作流关键词
     add_keywords = ["上架", "入库", "添加书", "新增书", "录入"]
     recommend_keywords = ["推荐", "推荐书", "适合我", "想看"]
@@ -117,6 +123,24 @@ def classify_intent(state: dict, config: RunnableConfig, *,
     for kw in inventory_keywords:
         if kw in lower:
             return {"route_type": "workflow", "route_target": "书籍盘点"}
+
+    # 借阅管理关键词 —— 查询优先，防止被借书关键词误匹配
+    query_borrow_keywords = ["借阅记录", "我借了", "谁借了", "逾期", "未还", "还剩", "几本", "可以借", "能借", "库存"]
+    borrow_keywords = ["借书", "我要借", "借一本", "借下", "帮我借"]
+    return_keywords = ["还书", "归还", "还回", "还一下"]
+
+    for kw in query_borrow_keywords:
+        if kw in lower:
+            return {"route_type": "specialists", "route_target": ["retriever"]}
+    for kw in borrow_keywords:
+        if kw in lower:
+            return {"route_type": "workflow", "route_target": "借书"}
+    for kw in return_keywords:
+        if kw in lower:
+            return {"route_type": "workflow", "route_target": "还书"}
+    for kw in query_borrow_keywords:
+        if kw in lower:
+            return {"route_type": "specialists", "route_target": ["retriever"]}
 
     # Skill 关键词匹配
     if skill_keywords:
@@ -252,6 +276,44 @@ def memory_update(state: dict, config: RunnableConfig, *,
         update_memory_async(llm, user_input, reply, long_term_memory, rag_store)
 
     return {}
+
+
+def extract_borrow_info(user_input: str, llm=None) -> dict:
+    """从用户输入提取借阅信息（书名 + 借阅人）"""
+    book_title = ""
+    title_match = re.search(r"《(.+?)》", user_input)
+    if title_match:
+        book_title = title_match.group(1)
+
+    borrower = ""
+    borrower_match = re.search(r"(?:我叫|我是|姓名[是为：:]?|借阅人[是为：:]?)\s*([^\s，,。、]{2,5})", user_input)
+    if borrower_match:
+        borrower = borrower_match.group(1).strip()
+
+    if book_title and borrower:
+        return {"book_title": book_title, "borrower": borrower}
+
+    if llm:
+        prompt = (
+            f"从用户输入中提取借阅信息，返回 JSON：\n"
+            f'{{"book_title": "书名", "borrower": "借阅人姓名"}}\n'
+            f"缺少的字段填空字符串。\n\n"
+            f"用户输入：{user_input}\n\n"
+            f"只返回 JSON，不要其他内容。"
+        )
+        try:
+            resp = llm.invoke([HumanMessage(content=prompt)], config={"temperature": 0})
+            text = resp.content.strip()
+            start = text.find("{")
+            end = text.rfind("}") + 1
+            if start >= 0 and end > start:
+                result = json.loads(text[start:end])
+                if isinstance(result, dict):
+                    return result
+        except Exception:
+            pass
+
+    return {"book_title": book_title, "borrower": borrower}
 
 
 # ============================================================

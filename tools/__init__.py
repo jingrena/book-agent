@@ -8,6 +8,7 @@ from langchain_core.tools import BaseTool
 
 from tools.core import CORE_TOOLS
 from tools.rag import RAG_TOOLS
+from tools.borrow import BORROW_TOOLS
 
 
 def _load_skill_tools(skills_dir: str = None) -> list:
@@ -34,7 +35,7 @@ def _load_skill_tools(skills_dir: str = None) -> list:
 
 def get_all_tools() -> list:
     """获取所有可用工具（核心 + RAG + Skills）"""
-    tools = list(CORE_TOOLS) + list(RAG_TOOLS) + _load_skill_tools()
+    tools = list(CORE_TOOLS) + list(RAG_TOOLS) + list(BORROW_TOOLS) + _load_skill_tools()
     return tools
 
 

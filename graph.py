@@ -12,6 +12,7 @@ from nodes import (
     input_guard, quick_reply, classify_intent,
     specialist_chain, output_guard, memory_update,
     after_input_guard, after_quick_reply, after_classify,
+    extract_book_info, extract_borrow_info,
 )
 from specialists import build_specialist_agents, load_skill_specialists
 from tools import get_all_tools
@@ -121,6 +122,17 @@ def build_graph():
                 return {"final_reply": f"请补充以下信息：{hint}。例如：上架《数学之美》作者吴军 2012-05-01"}
         elif target == "智能推荐":
             ctx["workflow_context"]["query"] = state.get("user_input", "")
+        elif target in ("借书", "还书"):
+            borrow_info = extract_borrow_info(state.get("user_input", ""), llm=llm)
+            ctx["workflow_context"].update(borrow_info)
+            missing = []
+            if not borrow_info.get("book_title"):
+                missing.append("书名")
+            if not borrow_info.get("borrower"):
+                missing.append("借阅人姓名")
+            if missing:
+                hint = "、".join(missing)
+                return {"final_reply": f"请提供：{hint}。例如：我叫张三，想借《三体》"}
 
         result = wf["graph"].invoke(ctx, config=config)
         return {"final_reply": result.get("final_reply", ""), "workflow_context": result.get("workflow_context", {})}

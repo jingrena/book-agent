@@ -193,8 +193,13 @@ async def stream_chat(request: Request):
                     event_name = event["name"]
                     event_data = event["data"]
                     if event_name == "token":
-                        final_text += event_data.get("text", "")
-                    yield f"event: {event_name}\ndata: {json.dumps(event_data, ensure_ascii=False)}\n\n"
+                        # on_chat_model_stream 已经流式发过了，custom token 仅在无流式内容时兜底
+                        # （例如工作流里没有 LLM 调用，靠固定字符串回复的场景）
+                        if not final_text:
+                            final_text = event_data.get("text", "")
+                            yield f"event: token\ndata: {json.dumps(event_data, ensure_ascii=False)}\n\n"
+                    else:
+                        yield f"event: {event_name}\ndata: {json.dumps(event_data, ensure_ascii=False)}\n\n"
 
             # 保存对话历史到 Redis（使用请求开始时加载的 session_data，避免重复 GET）
             history = session_data.get("messages", [])

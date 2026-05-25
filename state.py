@@ -47,3 +47,19 @@ class InventoryWorkflowState(TypedDict):
     workflow_context: dict
     final_reply: str
     session_id: str
+
+
+class BorrowWorkflowState(TypedDict):
+    """借书工作流状态"""
+    messages: Annotated[List[BaseMessage], add_messages]
+    workflow_context: dict
+    final_reply: str
+    session_id: str
+
+
+class ReturnWorkflowState(TypedDict):
+    """还书工作流状态"""
+    messages: Annotated[List[BaseMessage], add_messages]
+    workflow_context: dict
+    final_reply: str
+    session_id: str

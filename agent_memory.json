@@ -189,5 +189,14 @@
   "{'type': 'preference', 'category': '阅读偏好', 'content': '也喜欢言情小说，如《霸道总裁爱上我》'}",
   "{'偏好': '对文学创作有一定关注', '事实': '创作了小说《我的第一本小说》'}",
   "{'fact': '喜欢茨威格的作品', 'type': '偏好'}",
-  "{'fact': '对历史类书籍感兴趣', 'type': '偏好'}"
+  "{'fact': '对历史类书籍感兴趣', 'type': '偏好'}",
+  "{'type': 'user_fact', 'key': 'name', 'value': '张三'}",
+  "{'type': 'fact', 'value': '用户姓名是张三'}",
+  "{'type': 'fact', 'value': '用户借阅了《三体》'}",
+  "{'type': 'fact', 'value': '应还日期是2026-06-24'}",
+  "{'type': 'fact', 'content': '用户创作了名为《我的第一本小说》的作品'}",
+  "{'type': 'preference', 'content': '对文学类题材有明确兴趣或创作经历'}",
+  "{'type': 'fact', 'content': '用户书库中有《霸道总裁爱上你》'}",
+  "{'type': 'preference', 'content': '偏好情感或成长类主题'}",
+  "{'type': 'fact', 'content': '用户是《我的第一本小说》的作者'}"
 ]
